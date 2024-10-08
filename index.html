@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exploración Planetaria</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-image: url('https://img.freepik.com/foto-gratis/patron-galaxia-oscura_53876-96344.jpg?ga=GA1.1.1000889311.1726150826&semt=ais_hybrid');
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-position: center;
+        }
+
+        #details {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="details"></div>
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.module.js';
+
+        let scene, camera, renderer;
+        let sun, sunGlow, planets = [], extras = [];
+        let raycaster, mouse, infoPanel;
+        let scale = 150;
+        let isMouseDown = false;
+        let rotationX = 0, rotationY = 0;
+        let previousX = 0, previousY = 0;
+
+        const planetInfo = [
+            { name: 'Mercurio', size: 1, orbit: 10, texture: 'https://static.vecteezy.com/system/resources/previews/035/877/120/non_2x/ai-generated-mercury-surface-texture-background-free-photo.jpg', speed: 0.04, rotation: 0.02, description: 'el planeta más cercano al Sol, se encuentra a unos 57.9 millones de kilómetros de distancia. Con un diámetro de 4,880 km, es el más pequeño del Sistema Solar. Su superficie está llena de cráteres por impactos de meteoritos, y experimenta temperaturas extremas, desde 430°C durante el día hasta -180°C en la noche, debido a su atmósfera casi inexistente.' },
+            { name: 'Venus', size: 1.5, orbit: 15, texture: 'https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/ebbf2019-9330-43af-945d-d93d81bfadc7/dg4via3-7bde39bd-4a37-4fec-8f3d-69cdd28a3ebc.png/v1/fill/w_1264,h_632,q_70,strp/venus_texture_by_planetboiearth_dg4via3-pre.jpg?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7ImhlaWdodCI6Ijw9NjQwIiwicGF0aCI6IlwvZlwvZWJiZjIwMTktOTMzMC00M2FmLTk0NWQtZDkzZDgxYmZhZGM3XC9kZzR2aWEzLTdiZGUzOWJkLTRhMzctNGZlYy04ZjNkLTY5Y2RkMjhhM2ViYy5wbmciLCJ3aWR0aCI6Ijw9MTI4MCJ9XV0sImF1ZCI6WyJ1cm46c2VydmljZTppbWFnZS5vcGVyYXRpb25zIl19.Uwx_XPXSbWeUfUUfY6hltnRxkp2gXblLKxB1O947IuQ', speed: 0.02, rotation: 0.015, description: ' El segundo planeta más cercano al Sol, se encuentra a unos 108.2 millones de kilómetros de distancia. Con un diámetro de 12,104 km, es el planeta más parecido a la Tierra en tamaño y estructura. Su superficie es extremadamente caliente, alcanzando temperaturas de hasta 465°C, debido a un denso ambiente de gases de efecto invernadero que le confiere un color amarillento.' },
+            { name: 'Tierra', size: 2, orbit: 20, texture: 'https://i.imgur.com/IPG8Aehb.jpg', speed: 0.015, rotation: 0.01, description: 'El tercer planeta del Sistema Solar, está a 149.6 millones de kilómetros del Sol. Tiene un diámetro de 12,742 km, lo que la convierte en el quinto planeta más grande. Su superficie está compuesta por 71% de agua y 29% de tierra firme, con una atmósfera rica en oxígeno y nitrógeno que permite la vida. La Tierra tarda 365 días en completar una órbita alrededor del Sol, y su día dura 24 horas', moon: true },
+            { name: 'Marte', size: 1.2, orbit: 25, texture: 'https://thumbs.dreamstime.com/z/superficie-de-marte-52569065.jpg?w=992', speed: 0.012, rotation: 0.009, description: 'El cuarto planeta más cercano al Sol, se encuentra a unos 227.9 millones de kilómetros de distancia. Con un diámetro de 6,779 km, es aproximadamente la mitad del tamaño de la Tierra. Conocido como el "Planeta Rojo" debido a su superficie rica en óxido de hierro, Marte presenta un paisaje diverso con montañas, valles y extensas llanuras. Las temperaturas en Marte pueden variar entre -125°C en invierno y 20°C en verano.' },
+            { name: 'Júpiter', size: 4, orbit: 35, texture: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Solarsystemscope_texture_2k_jupiter.jpg/800px-Solarsystemscope_texture_2k_jupiter.jpg?20201026210251', speed: 0.008, rotation: 0.007, description: 'el quinto planeta más cercano al Sol, se encuentra a unos 778.5 millones de kilómetros de distancia. Con un diámetro de 139,820 km, es el planeta más grande del Sistema Solar, con un volumen que podría albergar a más de 1,300 Tierras. Su atmósfera está compuesta principalmente de hidrógeno y helio, y es famosa por sus impresionantes bandas de nubes y la Gran Mancha Roja, una gigantesca tormenta que ha estado activa durante siglos.' },
+            { name: 'Saturno', size: 3.5, orbit: 45, texture: 'https://static.vecteezy.com/system/resources/previews/002/284/795/non_2x/abstract-background-of-saturn-surface-vector.jpg', speed: 0.006, rotation: 0.008, description: 'el sexto planeta más cercano al Sol, se encuentra a unos 1,429 millones de kilómetros de distancia. Con un diámetro de 116,460 km, es el segundo planeta más grande del Sistema Solar, famoso por sus impresionantes anillos compuestos de hielo y partículas de roca..', rings: true },
+            { name: 'Urano', size: 2.8, orbit: 55, texture: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRmJw38tdYR67o-ySlZ3GqZknLOTJOVmCPa8Q&s', speed: 0.004, rotation: 0.005, description: 'El séptimo planeta más cercano al Sol, se encuentra a unos 2,871 millones de kilómetros de distancia. Con un diámetro de 50,724 km, es el tercer planeta más grande del Sistema Solar. Urano es único por su inclinación extrema; gira de lado con un eje inclinado aproximadamente 98 grados, lo que provoca que sus polos estén casi en el plano de su órbita. Su atmósfera está compuesta principalmente de hidrógeno, helio y metano, lo que le confiere su característico color azul verdoso. Las temperaturas en Urano pueden descender hasta -224°C, lo que lo convierte en el planeta más frío del Sistema Solar' },
+            { name: 'Neptuno', size: 2.7, orbit: 65, texture: 'data:image/jpeg;base64,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', speed: 0.003, rotation: 0.004, description: 'El octavo y último planeta del Sistema Solar, se encuentra a unos 4,495 millones de kilómetros de distancia del Sol. Con un diámetro de 49,244 km, es ligeramente más pequeño que Urano, pero posee una masa 17 veces mayor. Neptuno es conocido por su intenso color azul, que se debe a la presencia de metano en su atmósfera, y es famoso por sus poderosos vientos, que pueden alcanzar velocidades de hasta 2,100 km/h, convirtiéndolo en el planeta con los vientos más rápidos del Sistema Solar.' }
+        ];
+
+        function init() {
+            // Crear escena
+            scene = new THREE.Scene();
+            const textureLoader = new THREE.TextureLoader();
+            scene.background = textureLoader.load('');
+
+            // Cámara
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 80, scale);
+            camera.lookAt(0, 0, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.shadowMap.enabled = true;
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Luces
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // Luz ambiental tenue
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1); // Luz del Sol
+            directionalLight.position.set(0, 0, 0);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // Sol
+            const sunTexture = textureLoader.load('https://i.imgur.com/mrC3oTl.jpg'); // Textura del Sol
+            const sunGeometry = new THREE.SphereGeometry(5, 32, 32);
+            const sunMaterial = new THREE.MeshBasicMaterial({ map: sunTexture, emissive: 0xffff00 });
+            sun = new THREE.Mesh(sunGeometry, sunMaterial);
+            sun.name = 'Sol';
+            scene.add(sun);
+
+            // Crear borde de brillo alrededor del Sol (una esfera más grande y semitransparente)
+            const glowGeometry = new THREE.SphereGeometry(6, 32, 32); // Un poco más grande que el Sol
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffaa08,
+                transparent: true,
+                opacity: 0.1, // Transparencia del borde
+                side: THREE.BackSide, // Para que se vea solo desde fuera
+            });
+            sunGlow = new THREE.Mesh(glowGeometry, glowMaterial);
+            sun.add(sunGlow); // Añadir el "halo" al Sol
+
+            // Crear planetas y órbitas
+            planetInfo.forEach(data => {
+                const planetGeometry = new THREE.SphereGeometry(data.size, 32, 32);
+                const planetMaterial = new THREE.MeshStandardMaterial({ map: textureLoader.load(data.texture) });
+                const planet = new THREE.Mesh(planetGeometry, planetMaterial);
+                planet.name = data.name;
+                planet.castShadow = true;
+                planet.receiveShadow = true;
+
+                const orbit = new THREE.Object3D();
+                sun.add(orbit);
+                orbit.add(planet);
+
+                planets.push({ planet, orbit, data, angle: Math.random() * Math.PI * 2 });
+
+                // Añadir anillo de la órbita
+                const orbitGeometry = new THREE.RingGeometry(data.orbit - 0.1, data.orbit + 0.1, 64);
+                const orbitMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+                const orbitRing = new THREE.Mesh(orbitGeometry, orbitMaterial);
+                orbitRing.rotation.x = Math.PI / 2;
+                scene.add(orbitRing);
+
+                // Añadir la luna a la Tierra
+                if (data.name === 'Tierra' && data.moon) {
+                    const moonGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+                    const moonTexture = textureLoader.load('https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/1099ef86-9d2d-4f76-8bf8-afd10c2b73e8/dd1gw0r-9a70c8fa-a1aa-4218-b765-ff035805742b.png/v1/fill/w_1264,h_632,q_70,strp/uranus_texture_map___mixed_by_kale4good_dd1gw0r-pre.jpg?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7ImhlaWdodCI6Ijw9NjQwIiwicGF0aCI6IlwvZlwvMTA5OWVmODYtOWQyZC00Zjc2LThiZjgtYWZkMTBjMmI3M2U4XC9kZDFndzByLTlhNzBjOGZhLWExYWEtNDIxOC1iNzY1LWZmMDM1ODA1NzQyYi5wbmciLCJ3aWR0aCI6Ijw9MTI4MCJ9XV0sImF1ZCI6WyJ1cm46c2VydmljZTppbWFnZS5vcGVyYXRpb25zIl19.Wbb2hfQfK-tw7UofoeS-4K3nCsxx93Js9UzVEi80YZ4');
+                    const moonMaterial = new THREE.MeshStandardMaterial({ map: moonTexture });
+                    const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+                    moon.castShadow = true;
+                    moon.name = 'Luna';
+
+                    const moonOrbit = new THREE.Object3D();
+                    planet.add(moonOrbit);
+                    moonOrbit.position.set(3, 0, 0); // Distancia de la luna respecto a la Tierra
+                    moonOrbit.add(moon);
+                    extras.push(moon);
+                }
+
+                // Añadir anillos a Saturno
+                if (data.name === 'Saturno' && data.rings) {
+                    const ringGeometry = new THREE.RingGeometry(4.5, 7, 64);
+                    const ringTexture = textureLoader.load('https://astrosigma.com/images/sistema-solar/anillos-Saturno-vista-panoramica-1800.jpg');
+                    const ringMaterial = new THREE.MeshBasicMaterial({ map: ringTexture, side: THREE.DoubleSide });
+                    const rings = new THREE.Mesh(ringGeometry, ringMaterial);
+                    rings.rotation.x = Math.PI / 2;
+                    rings.name = 'Anillos de Saturno';
+                    planet.add(rings);
+                    extras.push(rings);
+                }
+            });
+
+            // Raycaster y detección de cursor
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            infoPanel = document.getElementById('details');
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mousedown', () => isMouseDown = true);
+            window.addEventListener('mouseup', () => isMouseDown = false);
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('wheel', onScroll);
+
+            animate();
+        }
+
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            if (isMouseDown) {
+                const deltaX = event.clientX - previousX;
+                const deltaY = event.clientY - previousY;
+                rotationX += deltaX * 0.005;
+                rotationY += deltaY * 0.005;
+                rotationY = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotationY));
+                camera.position.x = scale * Math.sin(rotationX) * Math.cos(rotationY);
+                camera.position.y = scale * Math.sin(rotationY);
+                camera.position.z = scale * Math.cos(rotationX) * Math.cos(rotationY);
+                camera.lookAt(0, 0, 0);
+            }
+
+            previousX = event.clientX;
+            previousY = event.clientY;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects([...planets.map(p => p.planet), ...extras]);
+
+            if (intersects.length > 0) {
+                const object = intersects[0].object;
+                let infoText = '';
+                const planetInfoData = planetInfo.find(planet => planet.name === object.name);
+                if (planetInfoData) {
+                    infoText = `<strong>${planetInfoData.name}</strong><br>${planetInfoData.description}`;
+                }
+                if (object.name === 'Luna') {
+                    infoText = `<strong>Luna</strong><br>La Luna es el único satélite natural de la Tierra y el quinto más grande del Sistema Solar, con un diámetro de aproximadamente 3,474 km. Se encuentra a una distancia promedio de unos 384,400 km de la Tierra.`;
+                } else if (object.name === 'Anillos de Saturno') {
+                    infoText = `<strong>Anillos de Saturno</strong><br>Los anillos de Saturno son uno de los fenómenos más impresionantes del Sistema Solar y están compuestos principalmente de partículas de hielo y roca de diversos tamaños, que varían desde granos de polvo hasta bloques de varios metros de diámetro. Se extienden hasta 280,000 km desde el planeta, aunque su grosor es de solo unos pocos cientos de metros.`;
+                }
+                if (infoText) {
+                    infoPanel.style.display = 'block';
+                    infoPanel.innerHTML = infoText;
+                    infoPanel.style.top = `${event.clientY + 20}px`;
+                    infoPanel.style.left = `${event.clientX + 20}px`;
+                }
+            } else {
+                infoPanel.style.display = 'none';
+            }
+        }
+
+        function onScroll(event) {
+            scale += event.deltaY * 0.05;
+            scale = Math.max(50, Math.min(500, scale));
+            camera.position.x = scale * Math.sin(rotationX) * Math.cos(rotationY);
+            camera.position.y = scale * Math.sin(rotationY);
+            camera.position.z = scale * Math.cos(rotationX) * Math.cos(rotationY);
+            camera.lookAt(0, 0, 0);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            sun.rotation.y += 0.002;
+            planets.forEach(({ planet, orbit, data, angle }) => {
+                angle += data.speed;
+                planet.position.x = Math.cos(angle) * data.orbit;
+                planet.position.z = Math.sin(angle) * data.orbit;
+                orbit.rotation.y += 0.002;
+                planet.rotation.y += data.rotation;
+            });
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
